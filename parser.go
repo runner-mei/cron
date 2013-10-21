@@ -262,7 +262,7 @@ func getRange(expr string, r bounds) (uint64, error) {
 	if start > end {
 		return 0, fmt.Errorf("Beginning of range (%d) beyond end of range (%d): %s", start, end, expr)
 	}
-	if step == 0 {
+	if step <= 0 {
 		return 0, fmt.Errorf("Step of range should be a positive number: %s", expr)
 	}
 

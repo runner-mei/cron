@@ -14,6 +14,7 @@ type Cron struct {
 	entries  []*Entry
 	stop     chan struct{}
 	add      chan *Entry
+	remove   chan string
 	snapshot chan []*Entry
 	running  bool
 	ErrorLog *log.Logger
@@ -34,6 +35,9 @@ type Schedule interface {
 
 // Entry consists of a schedule and the func to execute on that schedule.
 type Entry struct {
+	// the id
+	Id string
+
 	// The schedule on which this job should be run.
 	Schedule Schedule
 
@@ -78,6 +82,7 @@ func NewWithLocation(location *time.Location) *Cron {
 	return &Cron{
 		entries:  nil,
 		add:      make(chan *Entry),
+		remove:   make(chan string),
 		stop:     make(chan struct{}),
 		snapshot: make(chan []*Entry),
 		running:  false,
@@ -92,23 +97,24 @@ type FuncJob func()
 func (f FuncJob) Run() { f() }
 
 // AddFunc adds a func to the Cron to be run on the given schedule.
-func (c *Cron) AddFunc(spec string, cmd func()) error {
-	return c.AddJob(spec, FuncJob(cmd))
+func (c *Cron) AddFunc(id, spec string, cmd func()) error {
+	return c.AddJob(id, spec, FuncJob(cmd))
 }
 
 // AddJob adds a Job to the Cron to be run on the given schedule.
-func (c *Cron) AddJob(spec string, cmd Job) error {
+func (c *Cron) AddJob(id, spec string, cmd Job) error {
 	schedule, err := Parse(spec)
 	if err != nil {
 		return err
 	}
-	c.Schedule(schedule, cmd)
+	c.Schedule(id, schedule, cmd)
 	return nil
 }
 
 // Schedule adds a Job to the Cron to be run on the given schedule.
-func (c *Cron) Schedule(schedule Schedule, cmd Job) {
+func (c *Cron) Schedule(id string, schedule Schedule, cmd Job) {
 	entry := &Entry{
+		Id:       id,
 		Schedule: schedule,
 		Job:      cmd,
 	}
@@ -118,6 +124,21 @@ func (c *Cron) Schedule(schedule Schedule, cmd Job) {
 	}
 
 	c.add <- entry
+}
+
+func (c *Cron) Unschedule(remove_id string) {
+	if !c.running {
+		new_entries := make([]*Entry, 0, len(c.entries))
+		for _, ent := range c.entries {
+			if remove_id != ent.Id {
+				new_entries = append(new_entries, ent)
+			}
+		}
+		c.entries = new_entries
+		return
+	}
+
+	c.remove <- remove_id
 }
 
 // Entries returns a snapshot of the cron entries.
@@ -206,11 +227,18 @@ func (c *Cron) run() {
 				now = c.now()
 				newEntry.Next = newEntry.Schedule.Next(now)
 				c.entries = append(c.entries, newEntry)
-
+			case remove_id := <-c.remove:
+				new_entries := make([]*Entry, 0, len(c.entries))
+				for _, ent := range c.entries {
+					if remove_id != ent.Id {
+						new_entries = append(new_entries, ent)
+					}
+				}
+				c.entries = new_entries
+				continue
 			case <-c.snapshot:
 				c.snapshot <- c.entrySnapshot()
 				continue
-
 			case <-c.stop:
 				timer.Stop()
 				return
@@ -244,6 +272,7 @@ func (c *Cron) entrySnapshot() []*Entry {
 	entries := []*Entry{}
 	for _, e := range c.entries {
 		entries = append(entries, &Entry{
+			Id:       e.Id,
 			Schedule: e.Schedule,
 			Next:     e.Next,
 			Prev:     e.Prev,
