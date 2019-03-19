@@ -19,6 +19,8 @@ func TestActivation(t *testing.T) {
 		{"Mon Jul 9 15:05 2012", "0 5/15 * * *", true},
 		{"Mon Jul 9 15:20 2012", "0 5/15 * * *", true},
 		{"Mon Jul 9 15:50 2012", "0 5/15 * * *", true},
+		{"Mon Jul 9 15:50 2012", "0 5/15 * * * * *", true},
+		{"Mon Jul 9 15:50 2012", "0 5/15 * * * ? *", true},
 
 		// Named months
 		{"Sun Jul 15 15:00 2012", "0 0/15 * * Jul", true},

@@ -173,7 +173,7 @@ func TestParse(t *testing.T) {
 		},
 		{
 			expr: "* * * *",
-			err:  "Expected 5 to 6 fields",
+			err:  "Expected 5 to 7 fields",
 		},
 		{
 			expr: "",

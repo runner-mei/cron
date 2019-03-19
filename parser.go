@@ -23,6 +23,7 @@ const (
 	Dow                                 // Day of week field, default *
 	DowOptional                         // Optional day of week field, default *
 	Descriptor                          // Allow descriptors such as @monthly, @weekly, etc.
+	YearOptional
 )
 
 var places = []ParseOption{
@@ -32,12 +33,14 @@ var places = []ParseOption{
 	Dom,
 	Month,
 	Dow,
+	YearOptional,
 }
 
 var defaults = []string{
 	"0",
 	"0",
 	"0",
+	"*",
 	"*",
 	"*",
 	"*",
@@ -67,6 +70,10 @@ func NewParser(options ParseOption) Parser {
 	optionals := 0
 	if options&DowOptional > 0 {
 		options |= Dow
+		optionals++
+	}
+	if options&YearOptional > 0 {
+		options |= YearOptional
 		optionals++
 	}
 	return Parser{options, optionals}
@@ -105,6 +112,10 @@ func (p Parser) Parse(spec string) (Schedule, error) {
 
 	// Fill in missing fields
 	fields = expandFields(fields, p.options)
+
+	if fields[6] != "" && fields[6] != "*" && fields[6] != "?" {
+		fmt.Println("WARN: year will skip")
+	}
 
 	var err error
 	field := func(field string, r bounds) uint64 {
@@ -172,7 +183,7 @@ func ParseStandard(standardSpec string) (Schedule, error) {
 }
 
 var defaultParser = NewParser(
-	Second | Minute | Hour | Dom | Month | DowOptional | Descriptor,
+	Second | Minute | Hour | Dom | Month | DowOptional | Descriptor | YearOptional,
 )
 
 // Parse returns a new crontab schedule representing the given spec.
